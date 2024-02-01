@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"calendar_scheduler/src"
-	"calendar_scheduler/src/database"
 	"calendar_scheduler/src/models"
 	"calendar_scheduler/src/repositories"
 	"context"
@@ -27,13 +26,13 @@ func SetTokenCalendar(c *fiber.Ctx) error {
 		log.Printf("Erro doido %v", err)
 		return err
 	}
-	log.Printf("state redirect ")
 	userId := c.Locals("user_id")
 
 	if userId == nil {
 		return fiber.ErrUnauthorized
 	}
-	_, err = repositories.NewUserRepository().GetDataFromToken(userId.(float64))
+	userRepository := repositories.NewUserRepository()
+	_, err = userRepository.GetUserById(userId.(int))
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(models.MessageHTTP{Message: "User not founded!"})
 	}
@@ -46,10 +45,8 @@ func SetTokenCalendar(c *fiber.Ctx) error {
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(models.MessageHTTP{Message: err.Error()})
 	}
-
-	db, _ := database.OpenConnection()
-	_, err = db.Exec("insert into google_calendar_token(user_id, access_token, refresh_token, expiry, token_type) values ($1, $2, $3, $4, $5)",
-		userId, tokenAuth2.AccessToken, tokenAuth2.RefreshToken, tokenAuth2.Expiry, tokenAuth2.TokenType)
+	calendarRepository := repositories.NewCalendarRepository()
+	err = calendarRepository.InsertGoogleCalendarToken(tokenAuth2, userId.(int))
 	if err != nil {
 		log.Print(err)
 		return fiber.ErrBadGateway

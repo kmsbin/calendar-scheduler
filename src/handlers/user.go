@@ -16,7 +16,6 @@ import (
 )
 
 func CreateUserHadler(c *fiber.Ctx) error {
-	//rawBody := string(c.Body())
 	c.Set(headers.ContentType, fiber.MIMEApplicationJSON)
 	var user models.User
 	err := json.Unmarshal(c.Body(), &user)
@@ -37,45 +36,27 @@ func CreateUserHadler(c *fiber.Ctx) error {
 	return c.JSON(map[string]string{"message": "Successful!!"})
 }
 
-func GetAllUsers(ctx *fiber.Ctx) error {
-	db, _ := database.OpenConnection()
-	rows, err := db.Query("select users.user_id, users.name, users.email from users")
-	if err != nil {
-		panic(err)
-	}
-	var users []models.User
-	for rows.Next() {
-		var user models.User
-		err := rows.Scan(&user.Id, &user.Name, &user.Email)
-		if err != nil {
-			panic(err)
-		}
-		users = append(users, user)
-	}
-	return ctx.JSON(users)
-}
 func GetUser(ctx *fiber.Ctx) error {
 	userId := ctx.Locals("user_id")
 	if userId == nil {
 		return fiber.ErrUnauthorized
 	}
-	db, _ := database.OpenConnection()
-	rows := db.QueryRow("select users.user_id, users.name, users.email from users where user_id = $1", userId)
-	var user models.User
-	err := rows.Scan(&user.Id, &user.Name, &user.Email)
+	userRepository := repositories.NewUserRepository()
+	user, err := userRepository.GetUserById(userId.(int))
 	if err != nil {
-		panic(err)
+		return ctx.
+			Status(fiber.StatusNotFound).
+			JSON(models.MessageHTTPFromFiberError(fiber.ErrNotFound))
 	}
-	return ctx.JSON(user)
+	return ctx.Status(fiber.StatusOK).JSON(user)
 }
 func SignInUser(c *fiber.Ctx) error {
 	email, password := c.Query("email"), c.Query("password")
 	if email == "" || password == "" {
 		return fiber.ErrNotAcceptable
 	}
-	user, userPassword, err := repositories.
-		NewUserRepository().
-		GetUserByEmail(email)
+	userRepository := repositories.NewUserRepository()
+	user, userPassword, err := userRepository.GetUserByEmail(email)
 	if err != nil {
 		log.Printf("error %v\n", err)
 		if errors.Is(err, repositories.UserNotFounded) {

@@ -15,7 +15,8 @@ func GetCalendarService(c *fiber.Ctx) (*calendar.Service, *models.MessageHTTP) {
 	if userId == nil {
 		return nil, models.MessageHTTPFromFiberError(fiber.ErrUnauthorized)
 	}
-	user, err := repositories.NewUserRepository().GetDataFromToken(userId.(float64))
+	userRepository := repositories.NewUserRepository()
+	user, err := userRepository.GetUserById(userId.(int))
 	if err != nil {
 		return nil, &models.MessageHTTP{Message: "User not founded!", HttpCode: fiber.StatusUnauthorized}
 	}

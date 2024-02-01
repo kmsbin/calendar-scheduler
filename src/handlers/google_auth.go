@@ -1,13 +1,12 @@
 package handlers
 
 import (
-	"calendar_scheduler/src/database"
+	"calendar_scheduler/src/repositories"
 	"context"
 	"errors"
 	"golang.org/x/oauth2"
 	"log"
 	"net/http"
-	"time"
 )
 
 func getClient(token string, userId int, config *oauth2.Config) (*http.Client, error) {
@@ -24,22 +23,15 @@ func getClient(token string, userId int, config *oauth2.Config) (*http.Client, e
 }
 
 func tokenFromDb(userId int) (*oauth2.Token, error) {
-	db, _ := database.OpenConnection()
-	var token oauth2.Token
-	var expiry string
-	err := db.QueryRow(
-		"select access_token, token_type, refresh_token, expiry from google_calendar_token where user_id = $1",
-		userId,
-	).Scan(&token.AccessToken, &token.TokenType, &token.RefreshToken, &expiry)
-	token.Expiry, _ = time.Parse("2006-01-02 15:04:05.999999999Z07:00", expiry)
+	authRepository := repositories.NewAuthRepository()
+	token, err := authRepository.GetToken(userId)
 	if !token.Valid() {
-		_, err = db.Exec("delete from google_calendar_token where user_id = $1", userId)
+		err = authRepository.DeleteTokenByUserId(userId)
 		if err != nil {
 			panic(err)
 		}
 		return nil, errors.New("google credential is expired")
 	}
-
 	if err != nil {
 		log.Printf("erro %v", err.Error())
 		return nil, err
@@ -47,7 +39,7 @@ func tokenFromDb(userId int) (*oauth2.Token, error) {
 	if &token.AccessToken == nil {
 		return nil, errors.New("token not founded")
 	}
-	return &token, nil
+	return token, nil
 }
 
 type calendarTokenNotFounded struct {
