@@ -20,7 +20,7 @@ func NewCalendarRepository() CalendarRepository {
 	return CalendarRepository{db}
 }
 
-func (c *CalendarRepository) InsertGoogleCalendarToken(tokenAuth2 *oauth2.Token, userId int) error {
+func (c *CalendarRepository) InsertGoogleCalendarToken(tokenAuth2 *oauth2.Token, userId any) error {
 	_, err := c.db.Exec("insert into google_calendar_token(user_id, access_token, refresh_token, expiry, token_type) values ($1, $2, $3, $4, $5)",
 		userId,
 		tokenAuth2.AccessToken,

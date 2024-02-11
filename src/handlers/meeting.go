@@ -5,7 +5,6 @@ import (
 	"calendar_scheduler/src/repositories"
 	"github.com/gofiber/fiber/v2"
 	"log"
-	time "time"
 )
 
 func CreateMeetingRange(ctx *fiber.Ctx) error {
@@ -40,25 +39,9 @@ func GetMeetingRange(ctx *fiber.Ctx) error {
 		return models.MessageHTTPFromFiberError(fiber.ErrUnauthorized)
 	}
 	meetingRepository := repositories.NewMeetingRepository()
-	meetingRange, err := meetingRepository.GetLastMeetingRange(userId.(int))
+	meetingRange, err := meetingRepository.GetLastMeetingRange(userId)
 	if err != nil {
 		return fiber.ErrInternalServerError
 	}
 	return ctx.Status(fiber.StatusOK).JSON(meetingRange)
-}
-
-func validateMeeting(meeting *models.Meeting) error {
-	if meeting.Start.After(meeting.End.Time) {
-		return &models.MessageHTTP{
-			HttpCode: fiber.StatusUnprocessableEntity,
-			Message:  "The start date cannot be after the end date",
-		}
-	}
-	if meeting.Start.Before(time.Now()) || meeting.End.Before(time.Now()) {
-		return &models.MessageHTTP{
-			HttpCode: fiber.StatusUnprocessableEntity,
-			Message:  "The date cannot be before the current date",
-		}
-	}
-	return nil
 }

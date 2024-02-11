@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"calendar_scheduler/src/auth"
-	"calendar_scheduler/src/database"
 	"calendar_scheduler/src/models"
 	"calendar_scheduler/src/repositories"
 	"encoding/json"
@@ -27,13 +26,9 @@ func CreateUserHadler(c *fiber.Ctx) error {
 	if err != nil {
 		return err
 	}
-	db, _ := database.OpenConnection()
-	_, err = db.Exec("insert into users(name, email, password) values ($1, $2, $3)", user.Name, user.Email, password)
-	if err != nil {
-		log.Print(err)
-		return fiber.ErrBadGateway
-	}
-	return c.JSON(map[string]string{"message": "Successful!!"})
+	userRepository := repositories.NewUserRepository()
+	err = userRepository.InsertUser(&user, password)
+	return c.Status(fiber.StatusOK).JSON(map[string]string{"message": "Successful!!"})
 }
 
 func GetUser(ctx *fiber.Ctx) error {
@@ -42,7 +37,7 @@ func GetUser(ctx *fiber.Ctx) error {
 		return fiber.ErrUnauthorized
 	}
 	userRepository := repositories.NewUserRepository()
-	user, err := userRepository.GetUserById(userId.(int))
+	user, err := userRepository.GetUserById(userId)
 	if err != nil {
 		return ctx.
 			Status(fiber.StatusNotFound).

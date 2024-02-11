@@ -11,7 +11,7 @@ type UserRepository struct {
 	db *sql.DB
 }
 
-func (u *UserRepository) GetUserById(userId int) (*models.User, error) {
+func (u *UserRepository) GetUserById(userId any) (*models.User, error) {
 	rows := u.db.QueryRow("select users.user_id, users.name, users.email from users where user_id = $1", userId)
 	return prepareUser(rows)
 }
@@ -40,6 +40,16 @@ func (u *UserRepository) GetUserByEmail(email string) (*models.User, string, err
 		return nil, "", err
 	}
 	return &user, userPassword, err
+}
+
+func (u *UserRepository) InsertUser(user *models.User, password []byte) error {
+	_, err := u.db.Exec(
+		"insert into users(name, email, password) values ($1, $2, $3)",
+		user.Name,
+		user.Email,
+		password,
+	)
+	return err
 }
 func NewUserRepository() UserRepository {
 	db, err := database.OpenConnection()

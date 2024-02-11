@@ -32,7 +32,7 @@ func SetTokenCalendar(c *fiber.Ctx) error {
 		return fiber.ErrUnauthorized
 	}
 	userRepository := repositories.NewUserRepository()
-	_, err = userRepository.GetUserById(userId.(int))
+	_, err = userRepository.GetUserById(userId)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(models.MessageHTTP{Message: "User not founded!"})
 	}
@@ -46,7 +46,7 @@ func SetTokenCalendar(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusUnauthorized).JSON(models.MessageHTTP{Message: err.Error()})
 	}
 	calendarRepository := repositories.NewCalendarRepository()
-	err = calendarRepository.InsertGoogleCalendarToken(tokenAuth2, userId.(int))
+	err = calendarRepository.InsertGoogleCalendarToken(tokenAuth2, userId)
 	if err != nil {
 		log.Print(err)
 		return fiber.ErrBadGateway

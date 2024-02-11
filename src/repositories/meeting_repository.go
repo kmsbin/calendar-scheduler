@@ -37,7 +37,7 @@ func (m *MeetingRepository) InsertMeetingRange(meetingBody models.MeetingRange) 
 	return nil
 }
 
-func (m *MeetingRepository) GetLastMeetingRange(userId int) (*models.MeetingRange, error) {
+func (m *MeetingRepository) GetLastMeetingRange(userId any) (*models.MeetingRange, error) {
 	row := m.db.QueryRow("select id, user_id, summary, start_time, end_time, duration from meeting_range where user_id = $1", userId)
 
 	meetingRange := models.MeetingRange{}
