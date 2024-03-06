@@ -1,6 +1,6 @@
 package models
 
-type Meeting struct {
+type meetings struct {
 	Id       int                 `json:"id,omitempty"`
 	UserId   int                 `json:"user_id,omitempty"`
 	Summary  string              `json:"summary"`

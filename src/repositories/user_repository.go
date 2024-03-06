@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"calendar_scheduler/src/database"
 	"calendar_scheduler/src/models"
 	"database/sql"
 	"errors"
@@ -12,8 +11,8 @@ type UserRepository struct {
 }
 
 func (u *UserRepository) GetUserById(userId any) (*models.User, error) {
-	rows := u.db.QueryRow("select users.user_id, users.name, users.email from users where user_id = $1", userId)
-	return prepareUser(rows)
+	row := u.db.QueryRow("select users.user_id, users.name, users.email from users where user_id = $1", userId)
+	return prepareUser(row)
 }
 
 func prepareUser(rows *sql.Row) (*models.User, error) {
@@ -49,12 +48,15 @@ func (u *UserRepository) InsertUser(user *models.User, password []byte) error {
 		user.Email,
 		password,
 	)
+
 	return err
 }
-func NewUserRepository() UserRepository {
-	db, err := database.OpenConnection()
-	if err != nil {
-		panic(err)
-	}
+
+func (u *UserRepository) DeleteUser(userId any) error {
+	_, err := u.db.Exec("delete from users where user_id = $1", userId)
+	return err
+}
+
+func NewUserRepository(db *sql.DB) UserRepository {
 	return UserRepository{db}
 }

@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"calendar_scheduler/src/database"
 	"database/sql"
 	"github.com/gofiber/fiber/v2"
 	"golang.org/x/oauth2"
@@ -12,11 +11,7 @@ type CalendarRepository struct {
 	db *sql.DB
 }
 
-func NewCalendarRepository() CalendarRepository {
-	db, err := database.OpenConnection()
-	if err != nil {
-		panic(err)
-	}
+func NewCalendarRepository(db *sql.DB) CalendarRepository {
 	return CalendarRepository{db}
 }
 

@@ -1,7 +1,6 @@
 package repositories
 
 import (
-	"calendar_scheduler/src/database"
 	"database/sql"
 	"errors"
 	"golang.org/x/oauth2"
@@ -12,11 +11,7 @@ type AuthRepository struct {
 	db *sql.DB
 }
 
-func NewAuthRepository() AuthRepository {
-	db, err := database.OpenConnection()
-	if err != nil {
-		panic(err)
-	}
+func NewAuthRepository(db *sql.DB) AuthRepository {
 	return AuthRepository{db}
 }
 
@@ -40,7 +35,17 @@ func (a *AuthRepository) GetToken(userId int) (*oauth2.Token, error) {
 	return &token, err
 }
 
-func (a *AuthRepository) DeleteTokenByUserId(userId int) error {
+func (a *AuthRepository) DeleteTokenByUserId(userId any) error {
 	_, err := a.db.Exec("delete from google_calendar_token where user_id = $1", userId)
+	return err
+}
+
+func (a *AuthRepository) UpdateToken(id int, token *oauth2.Token) error {
+	_, err := a.db.Exec(
+		"update google_calendar_token set access_token = $2, expiry = $3 where user_id = $1",
+		id,
+		token.AccessToken,
+		token.Expiry,
+	)
 	return err
 }

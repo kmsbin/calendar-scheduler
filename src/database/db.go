@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	_ "github.com/lib/pq"
+	"log"
 )
 
 const (
@@ -25,4 +26,10 @@ func OpenConnection() (*sql.DB, error) {
 		panic(err)
 	}
 	return conn, err
+}
+
+func CloseConnection(conn *sql.DB) {
+	if err := conn.Close(); err != nil {
+		log.Fatalf("Error opening db connection %v", err)
+	}
 }

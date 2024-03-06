@@ -1,63 +1,83 @@
 package handlers
 
 import (
+	"calendar_scheduler/src/constants"
 	"calendar_scheduler/src/models"
 	"calendar_scheduler/src/repositories"
 	"errors"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"log"
 )
 
-func CreateMeetingRange(ctx *fiber.Ctx) error {
-	userId := ctx.Locals("user_id")
+func (h Handler) CreatemeetingsRange(ctx *fiber.Ctx) error {
+	userId, token := ctx.Locals(constants.UserId), ctx.Locals(constants.Token).(string)
 	if userId == nil {
-		log.Println("User id is nil.")
-		return models.MessageHTTPFromFiberError(fiber.ErrUnauthorized)
+		return models.
+			MessageHTTPFromFiberError(fiber.ErrUnauthorized).
+			FiberContext(ctx)
 	}
-	meetingBody := models.MeetingRange{
+	authUrl, err := repositories.GetGoogleAuthUrl(token)
+	if err != nil {
+		return models.MessageHTTPFromFiberError(fiber.ErrInternalServerError).FiberContext(ctx)
+	}
+	log.Printf("ORIGINAL URL %v", ctx.OriginalURL())
+	meetingsBody := models.meetingsRange{
 		UserId: int(userId.(float64)),
 	}
-	if err := ctx.BodyParser(&meetingBody); err != nil {
-		return models.MessageHTTPFromFiberError(fiber.ErrUnprocessableEntity)
+	if err := ctx.BodyParser(&meetingsBody); err != nil {
+		return models.
+			MessageHTTPFromFiberError(fiber.ErrUnprocessableEntity).
+			FiberContext(ctx)
 	}
-	if err := validateMeetingRange(meetingBody); err != nil {
+	if err := validatemeetingsRange(meetingsBody); err != nil {
 		return ctx.
 			Status(fiber.StatusUnprocessableEntity).
-			JSON(models.MessageHTTP{
-				HttpCode: fiber.StatusUnprocessableEntity,
-				Message:  err.Error(),
-			})
+			JSON(models.MessageHTTPFromMessage(err.Error()))
 	}
-	meetingRepository := repositories.NewMeetingRepository()
-	err := meetingRepository.InsertMeetingRange(meetingBody)
+	meetingsRepository := repositories.NewmeetingsRepository(h.db)
+	meetingsBody.Code = uuid.New().String()
+	err = meetingsRepository.InsertmeetingsRange(meetingsBody)
 	if err != nil {
 		log.Print(err)
-		return models.MessageHTTPFromFiberError(fiber.ErrBadGateway)
+		return models.
+			MessageHTTPFromFiberError(fiber.ErrBadGateway).FiberContext(ctx)
 	}
-	return ctx.JSON(models.MessageHTTP{
-		HttpCode: fiber.StatusCreated,
-		Message:  "Meeting created",
-	})
+	return ctx.
+		Status(fiber.StatusOK).
+		JSON(createmeetingsRangeResponse{authUrl})
 }
 
-func GetMeetingRange(ctx *fiber.Ctx) error {
-	userId := ctx.Locals("user_id")
+func (h Handler) GetmeetingsRange(c *fiber.Ctx) error {
+	userId := c.Locals(constants.UserId)
 	if userId == nil {
 		log.Println("User id is nil.")
-		return models.MessageHTTPFromFiberError(fiber.ErrUnauthorized)
+		return models.
+			MessageHTTPFromFiberError(fiber.ErrUnauthorized).
+			FiberContext(c)
 	}
-	meetingRepository := repositories.NewMeetingRepository()
-	meetingRange, err := meetingRepository.GetLastMeetingRange(userId)
+	meetingsRepository := repositories.NewmeetingsRepository(h.db)
+	meetingsRange, err := meetingsRepository.GetLastmeetingsRange(userId)
 	if err != nil {
-		return fiber.ErrInternalServerError
+		log.Println(err)
+		if errors.Is(err, repositories.meetingsRangeNotFounded) {
+			return models.
+				MessageHTTPFromFiberError(fiber.ErrNotFound).
+				FiberContext(c)
+		}
+		return models.
+			MessageHTTPFromFiberError(fiber.ErrInternalServerError).
+			FiberContext(c)
 	}
-	return ctx.Status(fiber.StatusOK).JSON(meetingRange)
+	return c.
+		Status(fiber.StatusOK).
+		JSON(meetingsRange)
 }
 
-func validateMeetingRange(meetingRange models.MeetingRange) error {
-	start, end, err := meetingRange.ConvertToTime()
+func validatemeetingsRange(meetingsRange models.meetingsRange) error {
+	start, end, err := meetingsRange.ConvertToTime()
 	if err != nil {
-		log.Printf("dates %v, %v", meetingRange.Start, meetingRange.End)
+		log.Printf("dates %v, %v", meetingsRange.Start, meetingsRange.End)
 		log.Printf("errors: %v", err)
 		return errors.New("error parsing dates")
 	}
@@ -65,4 +85,8 @@ func validateMeetingRange(meetingRange models.MeetingRange) error {
 		return errors.New("the start date cannot be after end date")
 	}
 	return nil
+}
+
+type createmeetingsRangeResponse struct {
+	Url string `json:"url"`
 }

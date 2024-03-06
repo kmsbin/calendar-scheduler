@@ -15,13 +15,23 @@ func GetGoogleAuthConfig() (*oauth2.Config, error) {
 		log.Printf("Unable to read client secret file: %v", err)
 		return nil, errors.New("cannot read calendar token")
 	}
-
-	// If modifying these scopes, delete your previously saved token.json.
 	config, err := google.ConfigFromJSON(credentials, calendar.CalendarEventsScope)
-	// config.RedirectURL = fmt.Sprintf("%s?token=%s", config.RedirectURL, token)
 	if err != nil {
 		log.Printf("Unable create google config token: %v", err)
 		return nil, errors.New("unable create google config token")
 	}
 	return config, nil
+}
+
+func GetGoogleAuthUrl(token string) (string, error) {
+	config, err := GetGoogleAuthConfig()
+	if err != nil {
+		return "", nil
+	}
+	authUrl := config.AuthCodeURL(
+		"state-token",
+		oauth2.AccessTypeOffline,
+		oauth2.SetAuthURLParam("state", token),
+	)
+	return authUrl, nil
 }

@@ -1,34 +1,29 @@
 package repositories
 
 import (
-	"calendar_scheduler/src/database"
 	"calendar_scheduler/src/models"
 	"database/sql"
 	"errors"
 	"log"
-	"time"
 )
 
-type MeetingRepository struct {
+type meetingsRepository struct {
 	db *sql.DB
 }
 
-func NewMeetingRepository() MeetingRepository {
-	db, err := database.OpenConnection()
-	if err != nil {
-		panic(err)
-	}
-	return MeetingRepository{db}
+func NewmeetingsRepository(db *sql.DB) meetingsRepository {
+	return meetingsRepository{db}
 }
 
-func (m *MeetingRepository) InsertMeetingRange(meetingBody models.MeetingRange) error {
+func (m *meetingsRepository) InsertmeetingsRange(meetingsBody models.meetingsRange) error {
 	_, err := m.db.Exec(
-		"insert into meeting_range(user_id, summary, start_time, end_time, duration) values ($1, $2, $3, $4, $5)",
-		meetingBody.UserId,
-		meetingBody.Summary,
-		meetingBody.Start,
-		meetingBody.End,
-		meetingBody.Duration,
+		"insert into meetings_ranges(user_id, summary, start_time, end_time, duration, code) values ($1, $2, $3, $4, $5, $6)",
+		meetingsBody.UserId,
+		meetingsBody.Summary,
+		meetingsBody.Start,
+		meetingsBody.End,
+		meetingsBody.Duration,
+		meetingsBody.Code,
 	)
 	if err != nil {
 		log.Print(err)
@@ -37,25 +32,39 @@ func (m *MeetingRepository) InsertMeetingRange(meetingBody models.MeetingRange) 
 	return nil
 }
 
-func (m *MeetingRepository) GetLastMeetingRange(userId any) (*models.MeetingRange, error) {
-	row := m.db.QueryRow("select id, user_id, summary, start_time, end_time, duration from meeting_range where user_id = $1", userId)
+func (m *meetingsRepository) GetLastmeetingsRange(userId any) (*models.meetingsRange, error) {
+	row := m.db.QueryRow("select id, code, user_id, summary, start_time, end_time, duration from meetings_ranges where user_id = $1", userId)
+	return scanTomeetingsRange(row)
+}
 
-	meetingRange := models.MeetingRange{}
+func scanTomeetingsRange(row *sql.Row) (*models.meetingsRange, error) {
+	meetingsRange := models.meetingsRange{}
 	var duration float64
 	err := row.Scan(
-		&meetingRange.Id,
-		&meetingRange.UserId,
-		&meetingRange.Summary,
-		&meetingRange.Start,
-		&meetingRange.End,
+		&meetingsRange.Id,
+		&meetingsRange.Code,
+		&meetingsRange.UserId,
+		&meetingsRange.Summary,
+		&meetingsRange.Start,
+		&meetingsRange.End,
 		&duration,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
+			return nil, meetingsRangeNotFounded
 		}
 		return nil, err
 	}
-	meetingRange.Duration = models.JSONDuration(time.Duration(duration))
-	return &meetingRange, nil
+	if &meetingsRange == nil {
+		log.Printf("meetingsRange == nil %v", meetingsRange)
+		return nil, meetingsRangeNotFounded
+	}
+	log.Printf("meetingsRange %v", meetingsRange)
+	meetingsRange.Duration = models.JSONDuration(duration)
+	return &meetingsRange, nil
+}
+
+func (m *meetingsRepository) GetmeetingsRangeByCode(code string) (*models.meetingsRange, error) {
+	row := m.db.QueryRow("select id, code, user_id, summary, start_time, end_time, duration from meetings_ranges where code = $1", code)
+	return scanTomeetingsRange(row)
 }

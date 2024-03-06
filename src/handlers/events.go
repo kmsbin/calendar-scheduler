@@ -1,8 +1,10 @@
 package handlers
 
 import (
+	"calendar_scheduler/src/constants"
 	"calendar_scheduler/src/models"
 	"calendar_scheduler/src/repositories"
+	"errors"
 	"github.com/gofiber/fiber/v2"
 	"google.golang.org/api/calendar/v3"
 	"log"
@@ -11,22 +13,21 @@ import (
 
 const minimunMinutesByRange = 1
 
-func getDatesFromContext(c *fiber.Ctx, meetingRange *models.MeetingRange) (*time.Time, *time.Time, error) {
+func getDatesFromContext(c *fiber.Ctx, meetingsRange *models.meetingsRange) (*time.Time, *time.Time, error) {
 	date, err := time.Parse(time.DateOnly, c.Query("date"))
 	if err != nil {
-		log.Printf("query error, param: %v, error: %v", c.Query("date"), err)
-		return nil, nil, models.MessageHTTPFromFiberError(fiber.ErrBadRequest)
+		return nil, nil, models.
+			MessageHTTPFromFiberError(fiber.ErrBadRequest).
+			FiberContext(c)
 	}
-	initialTime, finishTime, err := meetingRange.ConvertToDateRFC3339()
+	initialTime, finishTime, err := meetingsRange.ConvertToDateRFC3339()
 	if err != nil {
-		log.Printf("meeting range, start: %v, end: %v, error: %v", meetingRange.Start, meetingRange.End, err)
-		return nil, nil, models.MessageHTTPFromFiberError(fiber.ErrBadRequest)
+		return nil, nil, models.
+			MessageHTTPFromFiberError(fiber.ErrBadRequest).
+			FiberContext(c)
 	}
-	log.Printf("duration %v", meetingRange.Duration.Duration().Minutes())
 	*initialTime = setTime(date, *initialTime)
 	*finishTime = setTime(date, *finishTime)
-	log.Printf("initialTime %v", initialTime)
-	log.Printf("finishTime %v", finishTime)
 	return initialTime, finishTime, nil
 }
 func setTime(date, timeDate time.Time) time.Time {
@@ -42,25 +43,47 @@ func setTime(date, timeDate time.Time) time.Time {
 	)
 }
 
-func GetEmptyScheduledTime(c *fiber.Ctx) error {
-	srv, httpModelError := GetCalendarService(c)
-	userId := c.Locals("user_id")
-	if httpModelError != nil {
-		return c.Status(httpModelError.HttpCode).JSON(httpModelError)
+func (h Handler) GetmeetingsRangeByContext(c *fiber.Ctx) (*models.meetingsRange, *models.MessageHTTP) {
+	code := c.Query(constants.Code)
+	if len(code) == 0 {
+		return nil, &models.MessageHTTP{
+			HttpCode: fiber.StatusUnprocessableEntity,
+			Message:  "missing query parameter",
+		}
 	}
-	meetingRepository := repositories.NewMeetingRepository()
-	meetingRange, err := meetingRepository.GetLastMeetingRange(userId)
+	meetingsRepository := repositories.NewmeetingsRepository(h.db)
+	meetingsRange, err := meetingsRepository.GetmeetingsRangeByCode(code)
+	if err != nil {
+		if errors.Is(err, repositories.meetingsRangeNotFounded) {
+			return nil, &models.MessageHTTP{
+				HttpCode: fiber.StatusNotFound,
+				Message:  err.Error(),
+			}
+		}
+		return nil, &models.MessageHTTP{
+			HttpCode: fiber.StatusInternalServerError,
+			Message:  fiber.ErrInternalServerError.Error(),
+		}
+
+	}
+	return meetingsRange, nil
+}
+
+func (h Handler) GetEventsByCode(c *fiber.Ctx) error {
+	meetingsRange, httpModelError := h.GetmeetingsRangeByContext(c)
+	if httpModelError != nil {
+		return httpModelError.FiberContext(c)
+	}
+	srv, httpModelError := NewCalendarServiceFactor(h.db).GetCalendarServiceByUserId(meetingsRange.UserId)
+	if httpModelError != nil {
+		return httpModelError.FiberContext(c)
+	}
+
+	initialTime, finishTime, err := getDatesFromContext(c, meetingsRange)
 	if err != nil {
 		return c.
-			Status(fiber.StatusPreconditionRequired).
-			JSON(models.MessageHTTP{
-				Message: "is needed create a meeting range before",
-			})
-	}
-	initialTime, finishTime, err := getDatesFromContext(c, meetingRange)
-	if err != nil {
-		log.Printf("date format error %v", err)
-		return c.JSON(err)
+			Status(fiber.StatusUnprocessableEntity).
+			JSON(err)
 	}
 	events, err := srv.Events.
 		List("primary").
@@ -74,12 +97,9 @@ func GetEmptyScheduledTime(c *fiber.Ctx) error {
 		log.Printf("Unable to retrieve next ten of the user's events: %v", err)
 		return fiber.ErrInternalServerError
 	}
-	//if len(events.Items) == 0 {
-	//	return c.Status(200).JSON([]rangeTimeDate{})
-	//}
 	return c.
 		Status(200).
-		JSON(splitEventsUsingMeetingRange(getEmptyTimeRange(events.Items, *initialTime, *finishTime), meetingRange))
+		JSON(splitEventsUsingmeetingsRange(getEmptyTimeRange(events.Items, *initialTime, *finishTime), meetingsRange))
 }
 
 func revertStartEndOfEvents(events []*calendar.Event) []rangeTimeDate {
@@ -144,13 +164,13 @@ func getEmptyTimeRange(events []*calendar.Event, initialTime, finishTime time.Ti
 	return rangeTimeDatesEmpty
 }
 
-func splitEventsUsingMeetingRange(events []rangeTimeDate, meetingRange *models.MeetingRange) []rangeTimeDate {
-	meetingDuration := meetingRange.Duration.Duration()
+func splitEventsUsingmeetingsRange(events []rangeTimeDate, meetingsRange *models.meetingsRange) []rangeTimeDate {
+	meetingsDuration := meetingsRange.Duration.Duration()
 	splittedRanges := make([]rangeTimeDate, 0)
 
 	for _, rangeEvent := range events {
-		for rangeEvent.End.Sub(rangeEvent.Start).Minutes() > meetingDuration.Minutes() {
-			endDurationDate := rangeEvent.Start.Add(meetingDuration)
+		for rangeEvent.End.Sub(rangeEvent.Start).Minutes() > meetingsDuration.Minutes() {
+			endDurationDate := rangeEvent.Start.Add(meetingsDuration)
 			splittedRanges = append(splittedRanges, rangeTimeDate{
 				Start: rangeEvent.Start,
 				End:   endDurationDate,

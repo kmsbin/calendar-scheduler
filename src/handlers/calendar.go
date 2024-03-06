@@ -1,19 +1,16 @@
 package handlers
 
 import (
-	"calendar_scheduler/src"
+	"calendar_scheduler/src/constants"
 	"calendar_scheduler/src/models"
 	"calendar_scheduler/src/repositories"
 	"context"
-	"fmt"
 	"github.com/gofiber/fiber/v2"
-	"google.golang.org/api/calendar/v3"
-
 	"log"
 	"time"
 )
 
-func SetTokenCalendar(c *fiber.Ctx) error {
+func (h Handler) SetTokenCalendar(c *fiber.Ctx) error {
 	token := c.Query("state")
 	code := c.Query("code")
 	if len(token) == 0 || len(code) == 0 {
@@ -21,31 +18,31 @@ func SetTokenCalendar(c *fiber.Ctx) error {
 		return fiber.ErrUnauthorized
 	}
 
-	err := ValidateToken(token, c)
-	if err != nil {
-		log.Printf("Erro doido %v", err)
-		return err
+	httpModel := ValidateToken(token, c)
+	if httpModel != nil {
+		return httpModel.FiberContext(c)
 	}
-	userId := c.Locals("user_id")
+	userId := c.Locals(constants.UserId)
 
 	if userId == nil {
 		return fiber.ErrUnauthorized
 	}
-	userRepository := repositories.NewUserRepository()
-	_, err = userRepository.GetUserById(userId)
+	userRepository := repositories.NewUserRepository(h.db)
+	_, err := userRepository.GetUserById(userId)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(models.MessageHTTP{Message: "User not founded!"})
 	}
 	config, err := repositories.GetGoogleAuthConfig()
 	if err != nil {
-		msg := models.MessageHTTP{Message: err.Error()}
-		return c.Status(fiber.StatusInternalServerError).JSON(msg)
+		return c.
+			Status(fiber.StatusInternalServerError).
+			JSON(models.MessageHTTP{Message: err.Error()})
 	}
 	tokenAuth2, err := config.Exchange(context.TODO(), code)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(models.MessageHTTP{Message: err.Error()})
 	}
-	calendarRepository := repositories.NewCalendarRepository()
+	calendarRepository := repositories.NewCalendarRepository(h.db)
 	err = calendarRepository.InsertGoogleCalendarToken(tokenAuth2, userId)
 	if err != nil {
 		log.Print(err)
@@ -54,15 +51,17 @@ func SetTokenCalendar(c *fiber.Ctx) error {
 	return c.SendFile("./public/google_token_registred.html")
 }
 
-func GetEventList(c *fiber.Ctx) error {
-	srv, httpModelError := GetCalendarService(c)
+func (h Handler) GetEventList(c *fiber.Ctx) error {
+	srv, httpModelError := NewCalendarServiceFactor(h.db).GetCalendarServiceByContext(c)
 	if httpModelError != nil {
 		return c.Status(httpModelError.HttpCode).JSON(httpModelError)
 	}
-	initialTime, err := time.Parse(time.RFC3339, c.Query("initial_date"))
+	initialTime, err := time.Parse(time.RFC3339, c.Query(constants.InitialDate))
 	if err != nil {
 		log.Printf("Deu ruim %v", err)
-		return models.MessageHTTPFromFiberError(fiber.ErrBadRequest)
+		return models.
+			MessageHTTPFromFiberError(fiber.ErrBadRequest).
+			FiberContext(c)
 	}
 	events, err := srv.Events.
 		List("primary").
@@ -77,39 +76,4 @@ func GetEventList(c *fiber.Ctx) error {
 		return fiber.ErrInternalServerError
 	}
 	return c.Status(200).JSON(events.Items)
-}
-
-func CreateEvent(c *fiber.Ctx) error {
-	calendarEvent := models.CalendarEvent{}
-	if err := c.BodyParser(&calendarEvent); err != nil {
-		log.Printf("Unable to parse event. %v\n", err)
-		return models.MessageHTTPFromFiberError(fiber.ErrUnprocessableEntity)
-	}
-	srv, httpModelError := GetCalendarService(c)
-	if httpModelError != nil {
-		return c.Status(httpModelError.HttpCode).JSON(httpModelError)
-	}
-
-	event := &calendar.Event{
-		Summary:     calendarEvent.Summary,
-		Description: calendarEvent.Description,
-		Start: &calendar.EventDateTime{
-			DateTime: calendarEvent.Start.Format(time.RFC3339),
-			TimeZone: src.Locale,
-		},
-		End: &calendar.EventDateTime{
-			DateTime: calendarEvent.End.Format(time.RFC3339),
-			TimeZone: src.Locale,
-		},
-		Attendees: []*calendar.EventAttendee{
-			{Email: calendarEvent.Email},
-		},
-	}
-	event, err := srv.Events.Insert(src.CalendarId, event).Do()
-	if err != nil {
-		log.Printf("Unable to create event. %v\n", err)
-		return fiber.ErrInternalServerError
-	}
-	fmt.Printf("Event created: %s\n", event.HtmlLink)
-	return c.Status(200).JSON(event)
 }
