@@ -9,31 +9,30 @@ import (
 )
 
 func (h Handler) GetEventsFree(c *fiber.Ctx) error {
-	meetingsRange, err := h.getmeetingsRangeFromCode(c)
+	meetingsRange, err := h.getmeetingsRangeFromCode(c.Query(constants.Code))
 	if err != nil {
-		return err
+		return err.FiberContext(c)
 	}
 	return c.JSON(meetingsRange)
 }
 
-func (h Handler) getmeetingsRangeFromCode(c *fiber.Ctx) (*models.meetingsRange, error) {
-	code := c.Query(constants.Code)
+func (h Handler) getmeetingsRangeFromCode(code string) (*models.MeetingsRange, *models.MessageHTTP) {
 	if len(code) == 0 {
-		return nil, c.
-			Status(fiber.StatusUnprocessableEntity).
-			JSON(models.MessageHTTP{Message: "missing query parameter"})
+		return nil, &models.MessageHTTP{
+			Message:  "missing query parameter",
+			HttpCode: fiber.StatusUnprocessableEntity,
+		}
 	}
-	meetingsRepository := repositories.NewmeetingsRepository(h.db)
+	meetingsRepository := repositories.NewMeetingsRepository(h.db)
 	meetingsRange, err := meetingsRepository.GetmeetingsRangeByCode(code)
 	if err != nil {
-		if errors.Is(err, repositories.meetingsRangeNotFounded) {
-			return nil, c.
-				Status(fiber.StatusNotFound).
-				JSON(models.MessageHTTP{Message: err.Error()})
+		if errors.Is(err, repositories.MeetingsRangeNotFounded) {
+			return nil, &models.MessageHTTP{
+				Message:  err.Error(),
+				HttpCode: fiber.StatusNotFound,
+			}
 		}
-		return nil, c.
-			Status(fiber.StatusInternalServerError).
-			JSON(models.MessageHTTP{Message: fiber.ErrInternalServerError.Error()})
+		return nil, models.MessageHTTPFromFiberError(fiber.ErrInternalServerError)
 
 	}
 	return meetingsRange, nil

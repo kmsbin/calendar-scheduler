@@ -1,6 +1,8 @@
 package handlers
 
-import "database/sql"
+import (
+	"database/sql"
+)
 
 type Handler struct {
 	db *sql.DB

@@ -2,11 +2,10 @@ version: '3.5'
 
 services:
   postgres:
-    container_name: postgres_container
     image: postgres
     environment:
-      POSTGRES_DB: skill_share
-      POSTGRES_USER: root
+      POSTGRES_DB: calendator
+      POSTGRES_USER: kauli
       POSTGRES_PASSWORD: 1234
       PGDATA: /data/postgres
     ports:

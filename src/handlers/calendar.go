@@ -4,13 +4,14 @@ import (
 	"calendar_scheduler/src/constants"
 	"calendar_scheduler/src/models"
 	"calendar_scheduler/src/repositories"
+	"calendar_scheduler/src/services"
 	"context"
 	"github.com/gofiber/fiber/v2"
 	"log"
 	"time"
 )
 
-func (h Handler) SetTokenCalendar(c *fiber.Ctx) error {
+func (h Handler) SetTokenGoogleCalendar(c *fiber.Ctx) error {
 	token := c.Query("state")
 	code := c.Query("code")
 	if len(token) == 0 || len(code) == 0 {
@@ -52,7 +53,12 @@ func (h Handler) SetTokenCalendar(c *fiber.Ctx) error {
 }
 
 func (h Handler) GetEventList(c *fiber.Ctx) error {
-	srv, httpModelError := NewCalendarServiceFactor(h.db).GetCalendarServiceByContext(c)
+	srv, httpModelError := services.
+		NewCalendarServiceFactor(h.db).
+		GetCalendarService(
+			c.Locals(constants.Token).(string),
+			c.Locals(constants.UserId),
+		)
 	if httpModelError != nil {
 		return c.Status(httpModelError.HttpCode).JSON(httpModelError)
 	}

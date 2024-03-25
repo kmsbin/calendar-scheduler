@@ -4,3 +4,4 @@ drop table users;
 drop table meetings;
 drop table meetings_ranges;
 drop table meetings_ranges_emails;
+drop table token_black_list;

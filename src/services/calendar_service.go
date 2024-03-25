@@ -1,4 +1,4 @@
-package handlers
+package services
 
 import (
 	"calendar_scheduler/src/constants"
@@ -49,7 +49,7 @@ func (calendarServiceFactory CalendarServiceFactory) GetCalendarService(token st
 	client, err := calendarServiceFactory.getClient(token, user.Id, config)
 
 	if err != nil {
-		if tokenNotFoundedErr, ok := err.(calendarTokenNotFounded); ok {
+		if tokenNotFoundedErr, ok := err.(CalendarTokenNotFounded); ok {
 			return nil, &models.MessageHTTP{
 				Message:  tokenNotFoundedErr.AuthUrl,
 				HttpCode: fiber.StatusPreconditionRequired,
@@ -67,7 +67,7 @@ func (calendarServiceFactory CalendarServiceFactory) GetCalendarService(token st
 func (calendarServiceFactory CalendarServiceFactory) getClient(token string, userId int, config *oauth2.Config) (*http.Client, error) {
 	tok, err := calendarServiceFactory.tokenFromDb(userId, config)
 	if err != nil {
-		return nil, calendarTokenNotFounded{config.AuthCodeURL(
+		return nil, CalendarTokenNotFounded{config.AuthCodeURL(
 			"state-token",
 			oauth2.AccessTypeOffline,
 			oauth2.SetAuthURLParam("state", token),
@@ -78,7 +78,7 @@ func (calendarServiceFactory CalendarServiceFactory) getClient(token string, use
 }
 
 func (calendarServiceFactory CalendarServiceFactory) deleteGoogleAuthToken(userId any, authRepository repositories.AuthRepository) error {
-	err := authRepository.DeleteTokenByUserId(userId)
+	err := authRepository.DeleteCalendarTokenByUserId(userId)
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -112,10 +112,10 @@ func (calendarServiceFactory CalendarServiceFactory) tokenFromDb(userId int, con
 	return token, nil
 }
 
-type calendarTokenNotFounded struct {
+type CalendarTokenNotFounded struct {
 	AuthUrl string
 }
 
-func (ctf calendarTokenNotFounded) Error() string {
+func (ctf CalendarTokenNotFounded) Error() string {
 	return ctf.AuthUrl
 }

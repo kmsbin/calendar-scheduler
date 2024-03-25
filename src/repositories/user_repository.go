@@ -41,6 +41,15 @@ func (u *UserRepository) GetUserByEmail(email string) (*models.User, string, err
 	return &user, userPassword, err
 }
 
+func (u *UserRepository) ResetPassword(userId int, password string) error {
+	_, err := u.db.Exec(
+		"update users set password = $2 where $1",
+		userId,
+		password,
+	)
+
+	return err
+}
 func (u *UserRepository) InsertUser(user *models.User, password []byte) error {
 	_, err := u.db.Exec(
 		"insert into users(name, email, password) values ($1, $2, $3)",

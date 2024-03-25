@@ -2,7 +2,7 @@ package models
 
 import "time"
 
-type meetingsRange struct {
+type MeetingsRange struct {
 	Id       int          `json:"id,omitempty"`
 	UserId   int          `json:"user_id,omitempty"`
 	Summary  string       `json:"summary"`
@@ -12,7 +12,7 @@ type meetingsRange struct {
 	Code     string       `json:"code"`
 }
 
-func (m *meetingsRange) ConvertToDateRFC3339() (*time.Time, *time.Time, error) {
+func (m *MeetingsRange) ConvertToDateRFC3339() (*time.Time, *time.Time, error) {
 	start, err := time.Parse(time.RFC3339, m.Start)
 	if err != nil {
 		return nil, nil, err
@@ -24,7 +24,7 @@ func (m *meetingsRange) ConvertToDateRFC3339() (*time.Time, *time.Time, error) {
 	return &start, &end, nil
 }
 
-func (m *meetingsRange) ConvertToTime() (*time.Time, *time.Time, error) {
+func (m *MeetingsRange) ConvertToTime() (*time.Time, *time.Time, error) {
 	start, err := time.Parse(time.TimeOnly, m.Start)
 	if err != nil {
 		return nil, nil, err

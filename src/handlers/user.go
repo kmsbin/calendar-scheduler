@@ -13,22 +13,26 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"golang.org/x/crypto/bcrypt"
 	"log"
+	"time"
 )
 
-func (h Handler) CreateUserHadler(c *fiber.Ctx) error {
+func (h Handler) SignUpUser(c *fiber.Ctx) error {
 	c.Set(headers.ContentType, fiber.MIMEApplicationJSON)
 	var user models.User
 	err := json.Unmarshal(c.Body(), &user)
 	if err != nil {
+		log.Println(err)
 		return models.MessageHTTPFromFiberError(fiber.ErrNotAcceptable).FiberContext(c)
 	}
 	password, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
+		log.Println(err)
 		return models.MessageHTTPFromFiberError(fiber.ErrInternalServerError).FiberContext(c)
 	}
 	userRepository := repositories.NewUserRepository(h.db)
 	err = userRepository.InsertUser(&user, password)
 	if err != nil {
+		log.Println(err)
 		return models.MessageHTTPFromFiberError(fiber.ErrInternalServerError).FiberContext(c)
 	}
 	return c.
@@ -88,35 +92,71 @@ func (h Handler) SignInUser(c *fiber.Ctx) error {
 
 func (h Handler) ValidateTokenMiddleware(c *fiber.Ctx) error {
 	tokenString := c.Query(constants.Token)
-	if len(tokenString) == 0 {
-		return models.
-			MessageHTTPFromFiberError(fiber.ErrForbidden).
-			FiberContext(c)
-	}
 	if httpModel := ValidateToken(tokenString, c); httpModel != nil {
 		return httpModel.FiberContext(c)
+	}
+
+	authRepository := repositories.NewAuthRepository(h.db)
+	isValid, err := authRepository.IsValidToken(tokenString)
+	if err != nil {
+		log.Printf("error validating token %v \n", err)
+		return models.MessageHTTPFromFiberError(fiber.ErrInternalServerError).FiberContext(c)
+	}
+	if !isValid {
+		return c.
+			Status(fiber.StatusUnauthorized).
+			JSON(models.MessageHTTPFromMessage("Invalid token"))
+	}
+	if err := c.Next(); err != nil {
+		return c.
+			Status(fiber.StatusUnauthorized).
+			JSON(models.MessageHTTPFromMessage("Invalid token"))
 	}
 	return nil
 }
 
+func validateToken(token *jwt.Token) (any, error) {
+	if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+		return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
+	}
+	return []byte(auth.SigningKey), nil
+}
+
+func GetTokenExpirationData(tokenString string, c *fiber.Ctx) (*TokenData, *models.MessageHTTP) {
+	token, err := jwt.Parse(tokenString, validateToken)
+
+	if httpError := normalizeJwtError(token, err); httpError != nil {
+		return nil, httpError
+	}
+	expiration, err := time.Parse(time.RFC3339, token.Claims.(jwt.MapClaims)["expiration"].(string))
+	if err != nil {
+		return nil, &models.MessageHTTP{HttpCode: 498, Message: "Invalid token"}
+	}
+
+	return &TokenData{
+		Expiration: expiration,
+		UserId:     int(c.Locals(constants.UserId).(float64)),
+		Token:      c.Locals(constants.Token).(string),
+	}, nil
+}
+
 func ValidateToken(tokenString string, c *fiber.Ctx) *models.MessageHTTP {
 	c.Locals(constants.Token, tokenString)
-	token, err := jwt.Parse(tokenString, func(token *jwt.Token) (any, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, fmt.Errorf("unexpected signing method: %v", token.Header["alg"])
-		}
-		return []byte(auth.SigningKey), nil
-	})
+	token, err := jwt.Parse(tokenString, validateToken)
+
+	if httpError := normalizeJwtError(token, err); httpError != nil {
+		return httpError
+	}
+	c.Locals(constants.UserId, token.Claims.(jwt.MapClaims)[constants.UserId])
+	return nil
+}
+
+func normalizeJwtError(token *jwt.Token, err error) *models.MessageHTTP {
 	if err != nil {
-		log.Print(err)
 		return &models.MessageHTTP{HttpCode: fiber.StatusUnauthorized, Message: "Invalid token"}
 	}
 	switch {
 	case token.Valid:
-		c.Locals(constants.UserId, token.Claims.(jwt.MapClaims)[constants.UserId])
-		if err := c.Next(); err != nil {
-			return models.MessageHTTPFromFiberError(fiber.ErrInternalServerError)
-		}
 		return nil
 	case errors.Is(err, jwt.ErrTokenMalformed):
 		return &models.MessageHTTP{HttpCode: 498, Message: "That's not even a token"}
@@ -127,4 +167,10 @@ func ValidateToken(tokenString string, c *fiber.Ctx) *models.MessageHTTP {
 	default:
 		return &models.MessageHTTP{HttpCode: fiber.StatusInternalServerError, Message: "Unknow error"}
 	}
+}
+
+type TokenData struct {
+	Expiration time.Time
+	UserId     int
+	Token      string
 }

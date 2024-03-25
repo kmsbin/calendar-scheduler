@@ -4,6 +4,7 @@ import (
 	"calendar_scheduler/src/constants"
 	"calendar_scheduler/src/models"
 	"calendar_scheduler/src/repositories"
+	"calendar_scheduler/src/services"
 	"errors"
 	"github.com/gofiber/fiber/v2"
 	"google.golang.org/api/calendar/v3"
@@ -13,7 +14,7 @@ import (
 
 const minimunMinutesByRange = 1
 
-func getDatesFromContext(c *fiber.Ctx, meetingsRange *models.meetingsRange) (*time.Time, *time.Time, error) {
+func getDatesFromContext(c *fiber.Ctx, meetingsRange *models.MeetingsRange) (*time.Time, *time.Time, error) {
 	date, err := time.Parse(time.DateOnly, c.Query("date"))
 	if err != nil {
 		return nil, nil, models.
@@ -43,7 +44,7 @@ func setTime(date, timeDate time.Time) time.Time {
 	)
 }
 
-func (h Handler) GetmeetingsRangeByContext(c *fiber.Ctx) (*models.meetingsRange, *models.MessageHTTP) {
+func (h Handler) GetMeetingsRangeByContext(c *fiber.Ctx) (*models.MeetingsRange, *models.MessageHTTP) {
 	code := c.Query(constants.Code)
 	if len(code) == 0 {
 		return nil, &models.MessageHTTP{
@@ -51,10 +52,10 @@ func (h Handler) GetmeetingsRangeByContext(c *fiber.Ctx) (*models.meetingsRange,
 			Message:  "missing query parameter",
 		}
 	}
-	meetingsRepository := repositories.NewmeetingsRepository(h.db)
+	meetingsRepository := repositories.NewMeetingsRepository(h.db)
 	meetingsRange, err := meetingsRepository.GetmeetingsRangeByCode(code)
 	if err != nil {
-		if errors.Is(err, repositories.meetingsRangeNotFounded) {
+		if errors.Is(err, repositories.MeetingsRangeNotFounded) {
 			return nil, &models.MessageHTTP{
 				HttpCode: fiber.StatusNotFound,
 				Message:  err.Error(),
@@ -70,11 +71,13 @@ func (h Handler) GetmeetingsRangeByContext(c *fiber.Ctx) (*models.meetingsRange,
 }
 
 func (h Handler) GetEventsByCode(c *fiber.Ctx) error {
-	meetingsRange, httpModelError := h.GetmeetingsRangeByContext(c)
+	meetingsRange, httpModelError := h.GetMeetingsRangeByContext(c)
 	if httpModelError != nil {
 		return httpModelError.FiberContext(c)
 	}
-	srv, httpModelError := NewCalendarServiceFactor(h.db).GetCalendarServiceByUserId(meetingsRange.UserId)
+	srv, httpModelError := services.
+		NewCalendarServiceFactor(h.db).
+		GetCalendarServiceByUserId(meetingsRange.UserId)
 	if httpModelError != nil {
 		return httpModelError.FiberContext(c)
 	}
@@ -164,7 +167,7 @@ func getEmptyTimeRange(events []*calendar.Event, initialTime, finishTime time.Ti
 	return rangeTimeDatesEmpty
 }
 
-func splitEventsUsingmeetingsRange(events []rangeTimeDate, meetingsRange *models.meetingsRange) []rangeTimeDate {
+func splitEventsUsingmeetingsRange(events []rangeTimeDate, meetingsRange *models.MeetingsRange) []rangeTimeDate {
 	meetingsDuration := meetingsRange.Duration.Duration()
 	splittedRanges := make([]rangeTimeDate, 0)
 

@@ -10,7 +10,7 @@ import (
 	"log"
 )
 
-func (h Handler) CreatemeetingsRange(ctx *fiber.Ctx) error {
+func (h Handler) CreateMeetingsRange(ctx *fiber.Ctx) error {
 	userId, token := ctx.Locals(constants.UserId), ctx.Locals(constants.Token).(string)
 	if userId == nil {
 		return models.
@@ -21,8 +21,8 @@ func (h Handler) CreatemeetingsRange(ctx *fiber.Ctx) error {
 	if err != nil {
 		return models.MessageHTTPFromFiberError(fiber.ErrInternalServerError).FiberContext(ctx)
 	}
-	log.Printf("ORIGINAL URL %v", ctx.OriginalURL())
-	meetingsBody := models.meetingsRange{
+
+	meetingsBody := models.MeetingsRange{
 		UserId: int(userId.(float64)),
 	}
 	if err := ctx.BodyParser(&meetingsBody); err != nil {
@@ -35,9 +35,9 @@ func (h Handler) CreatemeetingsRange(ctx *fiber.Ctx) error {
 			Status(fiber.StatusUnprocessableEntity).
 			JSON(models.MessageHTTPFromMessage(err.Error()))
 	}
-	meetingsRepository := repositories.NewmeetingsRepository(h.db)
+	meetingsRepository := repositories.NewMeetingsRepository(h.db)
 	meetingsBody.Code = uuid.New().String()
-	err = meetingsRepository.InsertmeetingsRange(meetingsBody)
+	err = meetingsRepository.InsertMeetingsRange(meetingsBody)
 	if err != nil {
 		log.Print(err)
 		return models.
@@ -48,7 +48,7 @@ func (h Handler) CreatemeetingsRange(ctx *fiber.Ctx) error {
 		JSON(createmeetingsRangeResponse{authUrl})
 }
 
-func (h Handler) GetmeetingsRange(c *fiber.Ctx) error {
+func (h Handler) GetMeetingsRange(c *fiber.Ctx) error {
 	userId := c.Locals(constants.UserId)
 	if userId == nil {
 		log.Println("User id is nil.")
@@ -56,11 +56,11 @@ func (h Handler) GetmeetingsRange(c *fiber.Ctx) error {
 			MessageHTTPFromFiberError(fiber.ErrUnauthorized).
 			FiberContext(c)
 	}
-	meetingsRepository := repositories.NewmeetingsRepository(h.db)
+	meetingsRepository := repositories.NewMeetingsRepository(h.db)
 	meetingsRange, err := meetingsRepository.GetLastmeetingsRange(userId)
 	if err != nil {
 		log.Println(err)
-		if errors.Is(err, repositories.meetingsRangeNotFounded) {
+		if errors.Is(err, repositories.MeetingsRangeNotFounded) {
 			return models.
 				MessageHTTPFromFiberError(fiber.ErrNotFound).
 				FiberContext(c)
@@ -74,7 +74,7 @@ func (h Handler) GetmeetingsRange(c *fiber.Ctx) error {
 		JSON(meetingsRange)
 }
 
-func validatemeetingsRange(meetingsRange models.meetingsRange) error {
+func validatemeetingsRange(meetingsRange models.MeetingsRange) error {
 	start, end, err := meetingsRange.ConvertToTime()
 	if err != nil {
 		log.Printf("dates %v, %v", meetingsRange.Start, meetingsRange.End)

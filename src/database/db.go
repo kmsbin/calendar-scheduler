@@ -10,9 +10,9 @@ import (
 const (
 	host     = "localhost"
 	port     = 5432
-	user     = "root"
+	user     = "kauli"
 	password = "1234"
-	dbname   = "skill_share"
+	dbname   = "calendator"
 )
 
 func OpenConnection() (*sql.DB, error) {

@@ -35,8 +35,18 @@ func (a *AuthRepository) GetToken(userId int) (*oauth2.Token, error) {
 	return &token, err
 }
 
-func (a *AuthRepository) DeleteTokenByUserId(userId any) error {
+func (a *AuthRepository) DeleteCalendarTokenByUserId(userId any) error {
 	_, err := a.db.Exec("delete from google_calendar_token where user_id = $1", userId)
+	return err
+}
+
+func (a *AuthRepository) InsertTokenBlackList(userId int, token string, expiry time.Time) error {
+	_, err := a.db.Exec(
+		"insert into token_black_list values ($1, $2, $3)",
+		userId,
+		token,
+		expiry,
+	)
 	return err
 }
 
@@ -48,4 +58,15 @@ func (a *AuthRepository) UpdateToken(id int, token *oauth2.Token) error {
 		token.Expiry,
 	)
 	return err
+}
+
+func (a *AuthRepository) IsValidToken(tokenString string) (bool, error) {
+	count := 0
+	err := a.db.
+		QueryRow("select count(*) from token_black_list where token = $1", tokenString).
+		Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count == 0, nil
 }
