@@ -1,37 +1,43 @@
 package repositories
 
 import (
-	"errors"
+	"fmt"
 	"golang.org/x/oauth2"
-	"golang.org/x/oauth2/google"
 	"google.golang.org/api/calendar/v3"
-	"log"
 	"os"
 )
 
-func GetGoogleAuthConfig() (*oauth2.Config, error) {
-	credentials, err := os.ReadFile("credentials/credentials.json")
-	if err != nil {
-		log.Printf("Unable to read client secret file: %v", err)
-		return nil, errors.New("cannot read calendar token")
-	}
-	config, err := google.ConfigFromJSON(credentials, calendar.CalendarEventsScope)
-	if err != nil {
-		log.Printf("Unable create google config token: %v", err)
-		return nil, errors.New("unable create google config token")
-	}
-	return config, nil
+type GoogleCalendarRepository struct {
+	token   string
+	baseUrl string
 }
 
-func GetGoogleAuthUrl(token string) (string, error) {
-	config, err := GetGoogleAuthConfig()
-	if err != nil {
-		return "", nil
+func NewGoogleCalendarRepository(token, baseUrl string) GoogleCalendarRepository {
+	return GoogleCalendarRepository{
+		token:   token,
+		baseUrl: baseUrl,
 	}
+}
+
+func (g GoogleCalendarRepository) GetGoogleAuthConfig() *oauth2.Config {
+	return &oauth2.Config{
+		ClientID:     os.Getenv("GOOGLE_AUTH_CLIENT_ID"), //"536852565523-rnm7n3d4bj00uu5tmb513bls2ucpepev.apps.googleusercontent.com",
+		ClientSecret: os.Getenv("GOOGLE_AUTH_CLIENT_SECRET"),
+		RedirectURL:  fmt.Sprintf("%s/v1/set-token-google", g.baseUrl),
+		Scopes:       []string{calendar.CalendarEventsScope},
+		Endpoint: oauth2.Endpoint{
+			AuthURL:  "https://accounts.google.com/o/oauth2/auth",
+			TokenURL: "https://oauth2.googleapis.com/token",
+		},
+	}
+}
+
+func (g GoogleCalendarRepository) GetGoogleAuthUrl(token string) string {
+	config := g.GetGoogleAuthConfig()
 	authUrl := config.AuthCodeURL(
 		"state-token",
 		oauth2.AccessTypeOffline,
 		oauth2.SetAuthURLParam("state", token),
 	)
-	return authUrl, nil
+	return authUrl
 }

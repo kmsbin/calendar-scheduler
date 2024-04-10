@@ -10,16 +10,14 @@ import (
 
 func (h Handler) ReceivePasswordRecover(c *fiber.Ctx) error {
 	data := struct {
-		Password string `json:"password"`
 		Code     string `json:"code"`
+		Password string `json:"password"`
 	}{}
 
 	err := c.BodyParser(&data)
 
 	if data.Code == "" || data.Password == "" {
-		return c.
-			Status(fiber.StatusUnprocessableEntity).
-			JSON(models.MessageHTTPFromMessage("missing parameter"))
+		return UnprocessableEntity(c, models.MessageHTTPFromMessage("missing parameter"))
 	}
 
 	resetRepository := repositories.NewResetPasswordRepository(h.db)
@@ -27,9 +25,10 @@ func (h Handler) ReceivePasswordRecover(c *fiber.Ctx) error {
 
 	if err != nil {
 		if errors.Is(repositories.ResetPasswordNotFound, err) {
-			return c.
-				Status(fiber.StatusNotFound).
-				JSON(models.MessageHTTPFromMessage(repositories.ResetPasswordNotFound.Error()))
+			return NotFoundError(c, models.MessageHTTPFromMessage(repositories.ResetPasswordNotFound.Error()))
+		}
+		if errors.Is(repositories.ResetPasswordIsExpired, err) {
+			return GoneError(c, models.MessageHTTPFromMessage(repositories.ResetPasswordNotFound.Error()))
 		}
 		return InternalServerError(c)
 	}

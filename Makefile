@@ -6,3 +6,6 @@ upmigrate:
 
 destroyDb:
 	docker compose down --remove-orphans
+
+build:
+	GOARCH=amd64 GOOS=linux go build -o ./build/bootstrap ./cmd/main.go

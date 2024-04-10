@@ -1,1 +1,6 @@
 /**/*.json
+
+*.env
+calendar_scheduler.iml
+build/
+.idea/

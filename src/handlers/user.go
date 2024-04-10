@@ -22,18 +22,18 @@ func (h Handler) SignUpUser(c *fiber.Ctx) error {
 	err := json.Unmarshal(c.Body(), &user)
 	if err != nil {
 		log.Println(err)
-		return models.MessageHTTPFromFiberError(fiber.ErrNotAcceptable).FiberContext(c)
+		return NotAcceptableError(c)
 	}
 	password, err := bcrypt.GenerateFromPassword([]byte(user.Password), bcrypt.DefaultCost)
 	if err != nil {
 		log.Println(err)
-		return models.MessageHTTPFromFiberError(fiber.ErrInternalServerError).FiberContext(c)
+		return InternalServerError(c)
 	}
 	userRepository := repositories.NewUserRepository(h.db)
 	err = userRepository.InsertUser(&user, password)
 	if err != nil {
 		log.Println(err)
-		return models.MessageHTTPFromFiberError(fiber.ErrInternalServerError).FiberContext(c)
+		return InternalServerError(c)
 	}
 	return c.
 		Status(fiber.StatusOK).
@@ -43,14 +43,12 @@ func (h Handler) SignUpUser(c *fiber.Ctx) error {
 func (h Handler) GetUser(c *fiber.Ctx) error {
 	userId := c.Locals(constants.UserId)
 	if userId == nil {
-		return models.MessageHTTPFromFiberError(fiber.ErrUnauthorized).FiberContext(c)
+		return UnauthorizedError(c)
 	}
 	userRepository := repositories.NewUserRepository(h.db)
 	user, err := userRepository.GetUserById(userId)
 	if err != nil {
-		return models.
-			MessageHTTPFromFiberError(fiber.ErrNotFound).
-			FiberContext(c)
+		return UnauthorizedError(c)
 	}
 	return c.
 		Status(fiber.StatusOK).
@@ -58,32 +56,27 @@ func (h Handler) GetUser(c *fiber.Ctx) error {
 }
 func (h Handler) SignInUser(c *fiber.Ctx) error {
 	email, password := c.Query("email"), c.Query("password")
+
 	if email == "" || password == "" {
-		return fiber.ErrNotAcceptable
+		return NotAcceptableError(c)
 	}
 	userRepository := repositories.NewUserRepository(h.db)
 	user, userPassword, err := userRepository.GetUserByEmail(email)
 	if err != nil {
 		if errors.Is(err, repositories.UserNotFounded) {
-			return c.
-				Status(fiber.StatusNotFound).
-				JSON(models.MessageHTTPFromFiberError(fiber.ErrNotFound))
+			log.Println("not founded")
+			return NotFoundError(c)
 		}
-		return models.
-			MessageHTTPFromFiberError(fiber.ErrInternalServerError).
-			FiberContext(c)
+		return InternalServerError(c)
 	}
 	err = bcrypt.CompareHashAndPassword([]byte(userPassword), []byte(password))
 	if err != nil {
-		return models.
-			MessageHTTPFromFiberError(fiber.ErrUnauthorized).
-			FiberContext(c)
+		log.Println("bcripty error ", err)
+		return UnauthorizedError(c)
 	}
 	token, err := auth.CreateToken(*user)
 	if err != nil {
-		return models.
-			MessageHTTPFromFiberError(fiber.ErrUnauthorized).
-			FiberContext(c)
+		return UnauthorizedError(c)
 	}
 	return c.
 		Status(fiber.StatusOK).

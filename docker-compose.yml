@@ -5,7 +5,7 @@ services:
     image: postgres
     environment:
       POSTGRES_DB: calendator
-      POSTGRES_USER: kauli
+      POSTGRES_USER: calendatorUser
       POSTGRES_PASSWORD: 1234
       PGDATA: /data/postgres
     ports:

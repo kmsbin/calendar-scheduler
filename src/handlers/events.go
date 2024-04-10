@@ -14,18 +14,14 @@ import (
 
 const minimunMinutesByRange = 1
 
-func getDatesFromContext(c *fiber.Ctx, meetingsRange *models.MeetingsRange) (*time.Time, *time.Time, error) {
+func getDatesFromContext(c *fiber.Ctx, meetingsRange *models.MeetingsRange) (*time.Time, *time.Time, *models.MessageHTTP) {
 	date, err := time.Parse(time.DateOnly, c.Query("date"))
 	if err != nil {
-		return nil, nil, models.
-			MessageHTTPFromFiberError(fiber.ErrBadRequest).
-			FiberContext(c)
+		return nil, nil, models.MessageHTTPFromFiberError(fiber.ErrBadRequest)
 	}
 	initialTime, finishTime, err := meetingsRange.ConvertToDateRFC3339()
 	if err != nil {
-		return nil, nil, models.
-			MessageHTTPFromFiberError(fiber.ErrBadRequest).
-			FiberContext(c)
+		return nil, nil, models.MessageHTTPFromFiberError(fiber.ErrBadRequest)
 	}
 	*initialTime = setTime(date, *initialTime)
 	*finishTime = setTime(date, *finishTime)
@@ -76,17 +72,15 @@ func (h Handler) GetEventsByCode(c *fiber.Ctx) error {
 		return httpModelError.FiberContext(c)
 	}
 	srv, httpModelError := services.
-		NewCalendarServiceFactor(h.db).
+		NewCalendarServiceFactor(h.db, c.BaseURL()).
 		GetCalendarServiceByUserId(meetingsRange.UserId)
 	if httpModelError != nil {
 		return httpModelError.FiberContext(c)
 	}
 
-	initialTime, finishTime, err := getDatesFromContext(c, meetingsRange)
-	if err != nil {
-		return c.
-			Status(fiber.StatusUnprocessableEntity).
-			JSON(err)
+	initialTime, finishTime, httpModelError := getDatesFromContext(c, meetingsRange)
+	if httpModelError != nil {
+		return httpModelError.FiberContext(c)
 	}
 	events, err := srv.Events.
 		List("primary").
@@ -98,11 +92,11 @@ func (h Handler) GetEventsByCode(c *fiber.Ctx) error {
 		Do()
 	if err != nil {
 		log.Printf("Unable to retrieve next ten of the user's events: %v", err)
-		return fiber.ErrInternalServerError
+		return InternalServerError(c)
 	}
-	return c.
-		Status(200).
-		JSON(splitEventsUsingmeetingsRange(getEmptyTimeRange(events.Items, *initialTime, *finishTime), meetingsRange))
+	emptyTimeRange := getEmptyTimeRange(events.Items, *initialTime, *finishTime)
+	data := splitEventsUsingmeetingsRange(emptyTimeRange, meetingsRange)
+	return ResponseOK(c, data)
 }
 
 func revertStartEndOfEvents(events []*calendar.Event) []rangeTimeDate {
@@ -168,7 +162,11 @@ func getEmptyTimeRange(events []*calendar.Event, initialTime, finishTime time.Ti
 }
 
 func splitEventsUsingmeetingsRange(events []rangeTimeDate, meetingsRange *models.MeetingsRange) []rangeTimeDate {
-	meetingsDuration := meetingsRange.Duration.Duration()
+	meetingsDuration, err := time.ParseDuration(meetingsRange.Duration)
+	if err != nil {
+		panic(err)
+	}
+	log.Printf("meeting duration %v", meetingsDuration.Minutes())
 	splittedRanges := make([]rangeTimeDate, 0)
 
 	for _, rangeEvent := range events {

@@ -16,7 +16,7 @@ func (h Handler) SetTokenGoogleCalendar(c *fiber.Ctx) error {
 	code := c.Query("code")
 	if len(token) == 0 || len(code) == 0 {
 		log.Printf("state %s", token)
-		return fiber.ErrUnauthorized
+		return UnauthorizedError(c)
 	}
 
 	httpModel := ValidateToken(token, c)
@@ -26,19 +26,16 @@ func (h Handler) SetTokenGoogleCalendar(c *fiber.Ctx) error {
 	userId := c.Locals(constants.UserId)
 
 	if userId == nil {
-		return fiber.ErrUnauthorized
+		return UnauthorizedError(c)
 	}
 	userRepository := repositories.NewUserRepository(h.db)
 	_, err := userRepository.GetUserById(userId)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(models.MessageHTTP{Message: "User not founded!"})
+		return UnauthorizedError(c)
 	}
-	config, err := repositories.GetGoogleAuthConfig()
-	if err != nil {
-		return c.
-			Status(fiber.StatusInternalServerError).
-			JSON(models.MessageHTTP{Message: err.Error()})
-	}
+	config := repositories.
+		NewGoogleCalendarRepository(token, c.BaseURL()).
+		GetGoogleAuthConfig()
 	tokenAuth2, err := config.Exchange(context.TODO(), code)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(models.MessageHTTP{Message: err.Error()})
@@ -54,20 +51,18 @@ func (h Handler) SetTokenGoogleCalendar(c *fiber.Ctx) error {
 
 func (h Handler) GetEventList(c *fiber.Ctx) error {
 	srv, httpModelError := services.
-		NewCalendarServiceFactor(h.db).
+		NewCalendarServiceFactor(h.db, c.BaseURL()).
 		GetCalendarService(
 			c.Locals(constants.Token).(string),
 			c.Locals(constants.UserId),
 		)
 	if httpModelError != nil {
-		return c.Status(httpModelError.HttpCode).JSON(httpModelError)
+		return httpModelError.FiberContext(c)
 	}
 	initialTime, err := time.Parse(time.RFC3339, c.Query(constants.InitialDate))
 	if err != nil {
 		log.Printf("Deu ruim %v", err)
-		return models.
-			MessageHTTPFromFiberError(fiber.ErrBadRequest).
-			FiberContext(c)
+		return BadRequestError(c)
 	}
 	events, err := srv.Events.
 		List("primary").
@@ -79,7 +74,7 @@ func (h Handler) GetEventList(c *fiber.Ctx) error {
 		Do()
 	if err != nil {
 		log.Printf("Unable to retrieve next ten of the user's events: %v", err)
-		return fiber.ErrInternalServerError
+		return InternalServerError(c)
 	}
-	return c.Status(200).JSON(events.Items)
+	return ResponseOK(c, events.Items)
 }

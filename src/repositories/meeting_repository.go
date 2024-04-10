@@ -47,14 +47,13 @@ func (m *MeetingsRepository) InsertMeetingsRangeEmail(meetingsBody models.Meetin
 	return err
 }
 
-func (m *MeetingsRepository) GetLastmeetingsRange(userId any) (*models.MeetingsRange, error) {
+func (m *MeetingsRepository) GetLastMeetingsRange(userId any) (*models.MeetingsRange, error) {
 	row := m.db.QueryRow("select id, code, user_id, summary, start_time, end_time, duration from meetings_ranges where user_id = $1", userId)
 	return scanTomeetingsRange(row)
 }
 
 func scanTomeetingsRange(row *sql.Row) (*models.MeetingsRange, error) {
 	meetingsRange := models.MeetingsRange{}
-	var duration float64
 	err := row.Scan(
 		&meetingsRange.Id,
 		&meetingsRange.Code,
@@ -62,7 +61,7 @@ func scanTomeetingsRange(row *sql.Row) (*models.MeetingsRange, error) {
 		&meetingsRange.Summary,
 		&meetingsRange.Start,
 		&meetingsRange.End,
-		&duration,
+		&meetingsRange.Duration,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
@@ -75,7 +74,7 @@ func scanTomeetingsRange(row *sql.Row) (*models.MeetingsRange, error) {
 		return nil, MeetingsRangeNotFounded
 	}
 	log.Printf("meetingsRange %v", meetingsRange)
-	meetingsRange.Duration = models.JSONDuration(duration)
+
 	return &meetingsRange, nil
 }
 

@@ -4,6 +4,7 @@ import (
 	"calendar_scheduler/src/models"
 	"database/sql"
 	"errors"
+	"log"
 	"time"
 )
 
@@ -39,11 +40,15 @@ func (r ResetPasswordRepository) GetResetPasswordByCode(code string) (*models.Re
 	)
 	if err != nil {
 		if errors.Is(sql.ErrNoRows, err) {
+			log.Println(err)
 			return nil, ResetPasswordNotFound
 		}
 		return nil, err
 	}
 	resetPassword.Expiry, err = time.Parse(time.RFC3339, expiry)
+	if resetPassword.Expiry.Sub(time.Now()) < 0 {
+		return nil, ResetPasswordIsExpired
+	}
 	return &resetPassword, nil
 }
 
@@ -56,4 +61,5 @@ func (r ResetPasswordRepository) DeleteResetPasswordData(code string) error {
 	return err
 }
 
-var ResetPasswordNotFound = errors.New("your reset passoword code is expired")
+var ResetPasswordNotFound = errors.New("reset password code not found")
+var ResetPasswordIsExpired = errors.New("your reset passoword code is expired")

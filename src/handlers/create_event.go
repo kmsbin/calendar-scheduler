@@ -17,9 +17,7 @@ import (
 func (h Handler) CreateGoogleCalendarEvent(c *fiber.Ctx) error {
 	calendarEvent := models.CalendarEvent{}
 	if err := c.BodyParser(&calendarEvent); err != nil {
-		return c.
-			Status(fiber.StatusUnprocessableEntity).
-			JSON(models.MessageHTTPFromFiberError(fiber.ErrUnprocessableEntity))
+		return UnprocessableEntity(c)
 	}
 	meetingsRange, httpModelError := h.GetMeetingsRangeByContext(c)
 	if httpModelError != nil {
@@ -36,17 +34,13 @@ func (h Handler) CreateGoogleCalendarEvent(c *fiber.Ctx) error {
 
 	if err != nil {
 		if errors.Is(err, repositories.EmailDuplicatedInMeetingRange) {
-			return c.
-				Status(fiber.StatusConflict).
-				JSON(models.MessageHTTPFromMessage(err.Error()))
+			return ConflictError(c, models.MessageHTTPFromMessage(err.Error()))
 		}
-		return c.
-			Status(fiber.StatusInternalServerError).
-			JSON(map[string]string{"message": "something gets wrong"})
+		return InternalServerError(c)
 	}
 
 	srv, httpModelError := services.
-		NewCalendarServiceFactor(h.db).
+		NewCalendarServiceFactor(h.db, c.BaseURL()).
 		GetCalendarServiceByUserId(meetingsRange.UserId)
 	if httpModelError != nil {
 		return httpModelError.FiberContext(c)
@@ -61,15 +55,17 @@ func (h Handler) CreateGoogleCalendarEvent(c *fiber.Ctx) error {
 		Do()
 	if err != nil {
 		log.Printf("Unable to create event. %v\n", err)
-		return models.MessageHTTPFromFiberError(fiber.ErrInternalServerError).FiberContext(c)
+		return InternalServerError(c)
 	}
 	fmt.Printf("Event created: %s\n", event.HangoutLink)
-	return c.
-		Status(200).
-		JSON(models.MessageHTTP{Message: event.HangoutLink})
+	return ResponseOK(c, models.MessageHTTPFromMessage(event.HangoutLink))
 }
 
 func prepareCalendarEvent(calendarEvent models.CalendarEvent, meetingsRange *models.MeetingsRange) *calendar.Event {
+	meetingDuration, err := time.ParseDuration(meetingsRange.Duration)
+	if err != nil {
+		panic(err)
+	}
 	return &calendar.Event{
 		Summary: meetingsRange.Summary,
 		Start: &calendar.EventDateTime{
@@ -78,7 +74,7 @@ func prepareCalendarEvent(calendarEvent models.CalendarEvent, meetingsRange *mod
 		},
 		End: &calendar.EventDateTime{
 			DateTime: calendarEvent.Date.
-				Add(meetingsRange.Duration.Duration()).
+				Add(meetingDuration).
 				Format(time.RFC3339), //  calendarEvent.End.Format(time.RFC3339),
 			TimeZone: constants.Locale,
 		},

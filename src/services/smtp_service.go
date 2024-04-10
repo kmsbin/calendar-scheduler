@@ -1,5 +1,11 @@
 package services
 
 type SmptInterface interface {
-	SendEmail(email string) error
+	SendEmail(EmailData) error
+}
+
+type EmailData struct {
+	Email   string
+	BaseUrl string
+	Code    string
 }

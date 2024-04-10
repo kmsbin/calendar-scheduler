@@ -2,18 +2,19 @@ package handlers
 
 import (
 	"calendar_scheduler/src/constants"
-	"calendar_scheduler/src/models"
 	"calendar_scheduler/src/repositories"
 	"github.com/gofiber/fiber/v2"
 	"log"
 )
 
 func (h Handler) SignOutUser(c *fiber.Ctx) error {
-	if httpModel := ValidateToken(c.Query(constants.Token), c); httpModel != nil {
+	token := c.Query(constants.Token)
+
+	if httpModel := ValidateToken(token, c); httpModel != nil {
 		return httpModel.FiberContext(c)
 	}
 
-	tokenData, httpError := GetTokenExpirationData(c.Query(constants.Token), c)
+	tokenData, httpError := GetTokenExpirationData(token, c)
 	if httpError != nil {
 		return httpError.FiberContext(c)
 	}
@@ -26,10 +27,8 @@ func (h Handler) SignOutUser(c *fiber.Ctx) error {
 	)
 	if err != nil {
 		log.Println(err)
-		return models.MessageHTTPFromFiberError(fiber.ErrInternalServerError).FiberContext(c)
+		return InternalServerError(c)
 	}
 
-	return c.
-		Status(fiber.StatusOK).
-		JSON(models.MessageHTTPFromMessage("sign out successful!"))
+	return ResponseOK(c)
 }

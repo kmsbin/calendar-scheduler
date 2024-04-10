@@ -9,7 +9,6 @@ import (
 	"fmt"
 	"github.com/gofiber/fiber/v2"
 	"github.com/google/uuid"
-	"log"
 	"time"
 )
 
@@ -20,13 +19,9 @@ func (h Handler) SendPasswordRecover(c *fiber.Ctx) error {
 	user, _, err := userRepository.GetUserByEmail(email)
 	if err != nil {
 		if errors.Is(err, repositories.UserNotFounded) {
-			return c.
-				Status(fiber.StatusNotFound).
-				JSON(models.MessageHTTPFromFiberError(fiber.ErrNotFound))
+			return NotFoundError(c)
 		}
-		return models.
-			MessageHTTPFromFiberError(fiber.ErrInternalServerError).
-			FiberContext(c)
+		return InternalServerError(c)
 	}
 
 	recoveryRepository := repositories.NewResetPasswordRepository(h.db)
@@ -36,21 +31,23 @@ func (h Handler) SendPasswordRecover(c *fiber.Ctx) error {
 		Code:   uuid.NewString(),
 		Expiry: time.Now().Add(time.Hour * 24),
 	}
-	err = recoveryRepository.SetResetPassword(resetPassword)
-	if err != nil {
-		return models.MessageHTTPFromFiberError(fiber.ErrInternalServerError).FiberContext(c)
+	if err = recoveryRepository.SetResetPassword(resetPassword); err != nil {
+		return InternalServerError(c)
 	}
 
-	log.Println(user)
 	stmpService := services.NewSESService()
-	if err := stmpService.SendEmail(email); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.ErrInternalServerError)
+	emailData := services.EmailData{
+		Email:   email,
+		BaseUrl: c.BaseURL(),
+		Code:    resetPassword.Code,
 	}
-
-	return c.
-		Status(200).
-		JSON(map[string]string{
+	if err := stmpService.SendEmail(emailData); err != nil {
+		return InternalServerError(c)
+	}
+	return ResponseOK(c,
+		map[string]string{
 			"message": "Successful!",
 			"url":     fmt.Sprintf("http://localhost:3000/recover-password?code=%s", resetPassword.Code),
-		})
+		},
+	)
 }

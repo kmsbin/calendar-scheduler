@@ -3,13 +3,14 @@ package models
 import "time"
 
 type MeetingsRange struct {
-	Id       int          `json:"id,omitempty"`
-	UserId   int          `json:"user_id,omitempty"`
-	Summary  string       `json:"summary"`
-	Duration JSONDuration `json:"duration"`
-	Start    string       `json:"start"`
-	End      string       `json:"end"`
-	Code     string       `json:"code"`
+	Id       int    `json:"id,omitempty"`
+	UserId   int    `json:"user_id,omitempty"`
+	Summary  string `json:"summary"`
+	Duration string `json:"duration"`
+	Start    string `json:"start"`
+	End      string `json:"end"`
+	Code     string `json:"code"`
+	AuthUrl  string `json:"auth_url"`
 }
 
 func (m *MeetingsRange) ConvertToDateRFC3339() (*time.Time, *time.Time, error) {

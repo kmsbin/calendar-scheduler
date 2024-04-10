@@ -3,6 +3,7 @@ package services
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -24,19 +25,19 @@ func NewSESService() SESService {
 	return SESService{}
 }
 
-func (e SESService) SendEmail(toEmail string) error {
+func (e SESService) SendEmail(emailData EmailData) error {
 	sess, _ := session.NewSession(&aws.Config{
 		Region: aws.String("us-east-1")},
 	)
 
 	svc := ses.New(sess)
-
-	emailTemplateParsed, err := getTemplateEmail("http://localhost:3000")
+	fullUrl := fmt.Sprintf("%s/app/auth/reset-password/%s", emailData.BaseUrl, emailData.Code)
+	emailTemplateParsed, err := getTemplateEmail(fullUrl)
 	if err != nil {
 		return err
 	}
 
-	input := getSESEmailInput(toEmail, emailTemplateParsed)
+	input := getSESEmailInput(emailData.Email, emailTemplateParsed)
 	result, err := svc.SendEmail(input)
 
 	// Display error messages if they occur.
@@ -59,7 +60,7 @@ func (e SESService) SendEmail(toEmail string) error {
 		return err
 	}
 
-	log.Println("Email Sent to address: " + toEmail)
+	log.Println("Email Sent to address: " + emailData.Email)
 	log.Printf("Result %v\n", result.String())
 	return nil
 }

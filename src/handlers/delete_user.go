@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"calendar_scheduler/src/constants"
-	"calendar_scheduler/src/models"
 	"calendar_scheduler/src/repositories"
 	"github.com/gofiber/fiber/v2"
 )
@@ -13,10 +12,8 @@ func (h Handler) DeleteUser(c *fiber.Ctx) error {
 	err := userRepository.DeleteUser(userId)
 
 	if err != nil {
-		return models.MessageHTTPFromFiberError(fiber.ErrInternalServerError).FiberContext(c)
+		return InternalServerError(c)
 	}
 
-	return c.
-		Status(fiber.StatusOK).
-		JSON(models.MessageHTTPFromMessage("Success"))
+	return ResponseOK(c)
 }

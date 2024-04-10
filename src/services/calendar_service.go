@@ -16,11 +16,12 @@ import (
 )
 
 type CalendarServiceFactory struct {
-	db *sql.DB
+	db      *sql.DB
+	baseUrl string
 }
 
-func NewCalendarServiceFactor(db *sql.DB) CalendarServiceFactory {
-	return CalendarServiceFactory{db}
+func NewCalendarServiceFactor(db *sql.DB, baseUrl string) CalendarServiceFactory {
+	return CalendarServiceFactory{db, baseUrl}
 }
 
 func (calendarServiceFactory CalendarServiceFactory) GetCalendarServiceByContext(c *fiber.Ctx) (*calendar.Service, *models.MessageHTTP) {
@@ -42,10 +43,7 @@ func (calendarServiceFactory CalendarServiceFactory) GetCalendarService(token st
 	if err != nil {
 		return nil, &models.MessageHTTP{Message: "User not founded!", HttpCode: fiber.StatusUnauthorized}
 	}
-	config, err := repositories.GetGoogleAuthConfig()
-	if err != nil {
-		return nil, &models.MessageHTTP{Message: err.Error(), HttpCode: fiber.StatusInternalServerError}
-	}
+	config := repositories.NewGoogleCalendarRepository(token, "").GetGoogleAuthConfig()
 	client, err := calendarServiceFactory.getClient(token, user.Id, config)
 
 	if err != nil {
